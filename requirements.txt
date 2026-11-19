@@ -1,0 +1,26 @@
+# ZHS Studio —— 直接依赖
+#
+# 版本取自作者本机实测环境（Python 3.12.8 venv，2026-11-19）；要求 Python >= 3.10
+# （app.py 用了 `str | None` 这类 3.10+ 语法）。
+#
+# 说明：
+#   * fastapi / uvicorn / pydantic / websocket-client 是本项目自身用到的；
+#   * requests / openai / tiktoken / pycryptodome / pillow 是上游 fuckZHS 引擎用到的，
+#     但 fucker.py 在**模块顶层**就 import 了 openai 与 tiktoken —— 即使你完全不用
+#     AI 相关功能，也必须在同一解释器里装齐，否则 `import fucker` 直接失败；
+#   * 上游代码不在本仓库，请另行安装 fuckZHS 引擎并把路径写进 config.json 的
+#     engine_home（见 README）。
+#
+# 建议在干净环境复验一次再发布（版本号来自实测而非上游锁定）：
+#   python -m venv .venv
+#   .\.venv\Scripts\pip install -r requirements.txt
+
+fastapi==0.163.1
+uvicorn==0.54.0
+pydantic==2.14.3
+websocket-client==1.9.2
+requests==2.34.2
+openai==3.52.0
+tiktoken==0.14.0
+pycryptodome==4.5.0
+pillow==13.0.0

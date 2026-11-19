@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZHS Studio · 智慧树控制台</title>
+<style>
+  :root{
+    --bg:#0a0d14; --bg2:#101623; --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
+    --line:rgba(255,255,255,.09); --txt:#e8edf7; --dim:#93a1b8; --dim2:#707f99;
+    --acc:#4f8cff; --acc2:#8b5cff; --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --r:14px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1100px 700px at 12% -10%,#182444 0%,transparent 55%),
+               radial-gradient(900px 600px at 96% 8%,#2a1b46 0%,transparent 52%),
+               linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    color:var(--txt); font:14px/1.55 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  /* ---------- header ---------- */
+  header{
+    display:flex; align-items:center; gap:12px; padding:12px 20px; flex:none;
+    border-bottom:1px solid var(--line); backdrop-filter:blur(12px);
+    background:rgba(10,13,20,.6);
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:.3px;white-space:nowrap}
+  .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));
+        display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff;box-shadow:0 4px 14px rgba(79,140,255,.4)}
+  .brand small{color:var(--dim2);font-weight:400;font-size:12px;margin-left:2px}
+  .spacer{flex:1;min-width:8px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+        border:1px solid var(--line);background:var(--card);font-size:12px;color:var(--dim);white-space:nowrap}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim2);box-shadow:0 0 0 3px rgba(255,255,255,.04);flex:none}
+  .dot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .dot.bad{background:var(--err);box-shadow:0 0 10px var(--err)}
+  .dot.run{background:var(--acc);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  button{
+    font:inherit;font-size:13px;color:var(--txt);background:var(--card);border:1px solid var(--line);
+    padding:8px 14px;border-radius:10px;cursor:pointer;transition:.16s;display:inline-flex;align-items:center;gap:7px;
+    white-space:nowrap;
+  }
+  button:hover{background:var(--card2);border-color:rgba(255,255,255,.2);transform:translateY(-1px)}
+  button.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;font-weight:600;
+                 box-shadow:0 6px 20px rgba(79,140,255,.35)}
+  button.danger{border-color:rgba(248,113,113,.35);color:#ffc9c9;background:rgba(248,113,113,.1)}
+  button.toggled{border-color:rgba(79,140,255,.45);background:rgba(79,140,255,.14);color:#cfe0ff}
+  /* disabled:明确的不可点状态，去掉发光与渐变 */
+  button:disabled{opacity:1;cursor:not-allowed;transform:none;filter:none;
+    background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.07);
+    color:var(--dim2);box-shadow:none;font-weight:400}
+  button.primary:disabled{background:rgba(255,255,255,.05);color:#69788f;box-shadow:none}
+  button.danger:disabled{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.07);color:#69788f}
+  button:disabled:hover{transform:none;background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.07)}
+  button.primary:disabled:hover{background:rgba(255,255,255,.05)}
+  /* ---------- layout ---------- */
+  main{
+    --lw:308px;
+    flex:1;min-height:0;
+    display:grid;grid-template-columns:var(--lw) minmax(0,1fr) 356px;gap:14px;padding:14px 16px;
+  }
+  body.hideLeft main{--lw:0px}
+  body.hideLeft .col.left{display:none}
+  .col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;
+        backdrop-filter:blur(8px);min-height:0;display:flex;flex-direction:column}
+  .card h3{font-size:12px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--dim2);
+           margin-bottom:11px;display:flex;align-items:center;gap:8px}
+  .card h3 .n{margin-left:auto;color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400;
+              max-width:56%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .scroll{overflow:auto;min-height:0;scrollbar-width:thin;scrollbar-color:#2a3348 transparent}
+  .scroll::-webkit-scrollbar{width:8px;height:8px}
+  .scroll::-webkit-scrollbar-track{background:transparent}
+  .scroll::-webkit-scrollbar-thumb{background:#28314a;border-radius:4px;border:2px solid transparent;background-clip:padding-box}
+  .scroll::-webkit-scrollbar-thumb:hover{background:#35405f;background-clip:padding-box}
+  /* ---------- empty states ---------- */
+  .empty{padding:30px 14px;text-align:center;color:var(--dim);font-size:12.5px;line-height:1.85}
+  .empty .sub{display:block;color:var(--dim2);font-size:11.5px;margin-top:6px;line-height:1.7}
+  .empty .key{display:inline-block;margin-bottom:8px;padding:4px 11px;border-radius:999px;
+              background:rgba(79,140,255,.12);border:1px solid rgba(79,140,255,.3);
+              color:#bcd2ff;font-size:11.5px;letter-spacing:.4px}
+  .empty.err .key{background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.3);color:#ffb4b4}
+  .empty .retry{margin-top:14px;font-size:12px;padding:6px 16px}
+  /* ---------- course list ---------- */
+  #courses{display:flex;flex-direction:column;gap:9px;overflow:auto;min-height:0;padding-right:3px;flex:1 1 auto}
+  /* 关键：flex 列容器里的子项默认会被压扁到容器高度，导致永远没有溢出、滚不动。
+     这里显式禁止收缩，滚动条才会出现。 */
+  #courses > *{flex:0 0 auto}
+  .citem{display:flex;gap:10px;padding:9px;border-radius:11px;border:1px solid transparent;cursor:pointer;transition:.15s}
+  .citem:hover{background:var(--card2);border-color:var(--line)}
+  .citem.active{background:linear-gradient(135deg,rgba(79,140,255,.16),rgba(139,92,255,.12));
+                border-color:rgba(79,140,255,.42)}
+  .citem img{width:64px;height:44px;border-radius:7px;object-fit:cover;background:#1a2130;flex:none}
+  .citem .meta{min-width:0;flex:1}
+  .citem .t{font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .citem .s{font-size:11px;color:var(--dim2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini{height:4px;border-radius:3px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden}
+  .mini i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:3px;transition:width .4s}
+  /* ---------- overview ---------- */
+  .ov{display:flex;gap:16px;align-items:center}
+  .ring{width:98px;height:98px;flex:none;position:relative}
+  .ring svg{transform:rotate(-90deg);display:block}
+  .ring .val{position:absolute;inset:0;display:flex;align-items:baseline;justify-content:center;gap:1px;
+             font-size:19px;font-weight:700;letter-spacing:-.5px;padding-top:34px}
+  .ring .val small{font-size:11px;color:var(--dim2);font-weight:500}
+  .ovline{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:12px;color:var(--dim)}
+  .ovline b{color:var(--txt);font-weight:600;font-family:var(--mono)}
+  .ovline div{display:flex;gap:6px;align-items:baseline;min-width:0}
+  .nowplaying{margin-top:10px;padding:9px 11px;border-radius:10px;background:rgba(79,140,255,.1);
+              border:1px solid rgba(79,140,255,.24);font-size:12px;display:flex;gap:9px;align-items:center;
+              max-width:620px}
+  .nowplaying .badge{font-family:var(--mono);font-size:10.5px;color:#bcd2ff;background:rgba(79,140,255,.2);
+                     padding:2px 7px;border-radius:6px;flex:none}
+  .nowplaying #nowName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dce8ff}
+  .nowplaying #nowPct{margin-left:auto;font-family:var(--mono);color:#bcd2ff;flex:none}
+  .hint{font-size:11.5px;color:var(--dim2);margin-top:9px;line-height:1.6}
+  /* ---------- chapters ---------- */
+  #tree{overflow:auto;min-height:0;display:flex;flex-direction:column;gap:7px;padding-right:3px;flex:1 1 auto}
+  /* 同上：#tree 也是 flex 列，章节卡片必须 flex:0 0 auto 才不会被压成一条线，
+     否则 78 集全挤在容器高度里、scrollHeight == clientHeight，滚轮完全没反应。 */
+  #tree > *{flex:0 0 auto}
+  .ch{border:1px solid var(--line);border-radius:11px;overflow:hidden;background:rgba(255,255,255,.02)}
+  .chhead{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:.14s}
+  .chhead:hover{background:var(--card2)}
+  .chhead .arw{width:12px;flex:none;color:var(--dim2);transition:transform .18s;font-size:9px}
+  .ch.open .chhead .arw{transform:rotate(90deg)}
+  .chhead .nm{font-size:13px;font-weight:550;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chhead .ct{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;
+              padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.06);letter-spacing:.3px}
+  .chhead .ct.ok{color:#8ef0c8;background:rgba(52,211,153,.14)}
+  .tag{font-size:10px;padding:2px 7px;border-radius:6px;border:1px solid var(--line);color:var(--dim);flex:none}
+  .tag.ok{color:#8ef0c8;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1)}
+  .tag.ex{color:#ffd88a;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.1)}
+  .vlist{display:none;padding:2px 8px 8px}
+  .ch.open .vlist{display:block}
+  .vrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;
+        padding:7px 8px;border-radius:8px;font-size:12.5px;transition:.12s}
+  .vrow:hover{background:rgba(255,255,255,.04)}
+  .vrow.playing{background:linear-gradient(90deg,rgba(79,140,255,.2),rgba(79,140,255,.08));
+                box-shadow:inset 2px 0 0 var(--acc),inset 0 0 0 1px rgba(79,140,255,.32)}
+  .vrow.playing .vname{color:#d7e6ff;font-weight:600}
+  .vrow .ic{width:16px;text-align:center;font-size:11px;color:var(--dim2);flex:none}
+  .vrow.done .ic{color:var(--ok)}
+  .vname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vbar{width:76px;height:4px;border-radius:3px;background:rgba(255,255,255,.09);overflow:hidden;flex:none}
+  .vbar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .4s}
+  .vrow.done .vbar i{background:var(--ok)}
+  .vt{font-family:var(--mono);font-size:10.5px;color:var(--dim);flex:none;width:96px;text-align:right;white-space:nowrap}
+  .vrow.done .vt{color:var(--dim2)}
+  /* ---------- controls ---------- */
+  .field{margin-bottom:13px}
+  .field label{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--dim);margin-bottom:6px}
+  .field label b{color:var(--txt);font-family:var(--mono)}
+  input[type=range]{width:100%;-webkit-appearance:none;height:4px;border-radius:3px;background:rgba(255,255,255,.12);outline:0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+      background:#fff;box-shadow:0 0 0 3px rgba(79,140,255,.35);cursor:pointer}
+  input[type=number]{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--txt);
+      padding:7px 10px;border-radius:9px;font:inherit;font-size:13px;outline:0}
+  input[type=number]:focus{border-color:rgba(79,140,255,.5)}
+  .sw{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;font-size:12.5px;color:var(--dim)}
+  .toggle{width:38px;height:21px;border-radius:999px;background:rgba(255,255,255,.13);position:relative;cursor:pointer;transition:.18s;flex:none}
+  .toggle i{position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.18s}
+  .toggle.on{background:linear-gradient(135deg,var(--acc),var(--acc2))}
+  .toggle.on i{left:19.5px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .stat{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
+  .stat span{display:block;font-size:10.5px;color:var(--dim2);letter-spacing:.3px}
+  .stat b{font-size:16px;font-weight:650;font-family:var(--mono)}
+  .stat b.bad{color:var(--err)}
+  /* ---------- events ---------- */
+  #events{overflow:auto;min-height:0;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+          display:flex;flex-direction:column;gap:1px;padding-right:6px}
+  .ev{padding:4px 9px 4px 8px;border-radius:6px;display:flex;gap:7px;align-items:flex-start}
+  .ev time{color:var(--dim2);flex:none;font-size:10.5px;padding-top:1px}
+  .ev .k{flex:none;font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.07);color:var(--dim)}
+  .ev.play .k{background:rgba(79,140,255,.18);color:#bcd2ff}
+  .ev.done .k{background:rgba(52,211,153,.18);color:#8ef0c8}
+  .ev.answer .k{background:rgba(251,191,36,.18);color:#ffd88a}
+  .ev.error .k{background:rgba(248,113,113,.18);color:#ffb4b4}
+  .ev.system .k{background:rgba(139,92,255,.18);color:#d3c1ff}
+  .ev.progress .k{background:rgba(255,255,255,.05);color:#8fa3c7}
+  .ev.progress .m{color:var(--dim2)}
+  .ev .m{color:var(--dim);min-width:0;overflow-wrap:anywhere;word-break:break-word}
+  .ev.answer .m,.ev.error .m{color:var(--txt)}
+  .ev.error .m{color:#ffd9d9}
+  /* ---------- responsive ---------- */
+  /* ≤1366：收窄左右两栏，中栏不被挤扁（1280 笔记本也走这条） */
+  @media (max-width:1366px){
+    main{--lw:262px;grid-template-columns:var(--lw) minmax(0,1fr) 318px;gap:10px;padding:10px 12px}
+    header{padding:10px 12px;gap:9px}
+    .brand small{display:none}
+    .pill{font-size:11.5px;padding:5px 9px}
+    button{padding:7px 11px;font-size:12.5px}
+    .card{padding:12px}
+    .ov{gap:12px}
+    .nowplaying{max-width:none}
+    .vbar{width:54px}
+    .vt{width:84px;font-size:10px}
+    .citem img{width:56px;height:40px}
+  }
+  body.hideLeft main{--lw:0px}
+  /* ≤1199：降为两栏（课程 | 章节），控制台与事件流挪到底部通栏 */
+  @media (max-width:1199px){
+    main{--lw:236px;grid-template-columns:var(--lw) minmax(0,1fr);
+         grid-template-rows:minmax(0,1fr) 296px}
+    body.hideLeft main{--lw:0px}
+    .col.right{grid-column:1 / -1;display:grid;grid-template-columns:290px minmax(0,1fr);gap:10px}
+    .col.right .card{overflow:auto}
+    .col.right .card:last-child{overflow:hidden}
+  }
+  /* ---------- 答题记录 ---------- */
+  .tabs{display:flex;gap:2px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+  .tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:5px 10px 7px;
+       color:var(--dim2);font-size:12px;cursor:pointer;transition:.15s}
+  .tab:hover{color:var(--txt);background:none;transform:none}
+  .tab.active{color:var(--txt);border-bottom-color:var(--acc)}
+  .tab .n{font-family:var(--mono);font-size:10.5px;color:var(--dim2);margin-left:4px}
+  .ans{border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;
+       background:rgba(255,255,255,.025)}
+  .ans-h{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:10.5px;
+         color:var(--dim2);margin-bottom:5px}
+  .ans-stem{font-size:12.5px;line-height:1.5;margin-bottom:7px;color:var(--txt)}
+  .ans-o{display:flex;gap:6px;flex-wrap:wrap}
+  .ans-o span{font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);
+              color:var(--dim);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ans-o span.pick{color:#8ef0c8;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.1)}
+  .ans-o span.pick::before{content:"✔ "}
+  .ans-o span.pick.bad{color:#ffb4b4;border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.1)}
+  .ans-o span.pick.bad::before{content:"✘ "}
+  /* ---------- 验证码提示 ---------- */
+  .warnbox{display:flex;flex-direction:column;gap:7px;margin-top:12px;padding:11px 12px;border-radius:10px;
+           background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.32)}
+  .warnbox .wb-t{font-size:12.5px;font-weight:600;color:#ffd88a}
+  .warnbox .wb-d{font-size:11.5px;line-height:1.6;color:var(--dim)}
+  .warnbox button{padding:5px 11px;font-size:12px;border-color:rgba(251,191,36,.35);color:#ffd88a}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">Z</div>
+    <div>ZHS Studio <small>智慧树控制台</small></div>
+  </div>
+  <div class="spacer"></div>
+  <button id="btnSide" class="toggled" title="显示 / 隐藏课程栏">◀ 课程</button>
+  <span class="pill" id="cookiePill"><span class="dot" id="cookieDot"></span><span id="cookieTxt">未连接登录态</span></span>
+  <span class="pill" id="taskPill"><span class="dot" id="taskDot"></span><span id="taskTxt">空闲</span></span>
+  <button id="btnGrab">抓登录态</button>
+  <button id="btnReload">刷新</button>
+</header>
+
+<main>
+  <!-- 左：课程 -->
+  <div class="col left">
+    <div class="card" style="flex:1">
+      <h3>我的课程 <span class="n" id="courseCount">—</span></h3>
+      <div id="courses" class="scroll"></div>
+    </div>
+  </div>
+
+  <!-- 中：概览 + 章节 -->
+  <div class="col mid">
+    <div class="card">
+      <h3>课程概览 <span class="n" id="ovCourse">未选择课程</span></h3>
+      <div class="ov">
+        <div class="ring">
+          <svg width="98" height="98" viewBox="0 0 98 98">
+            <circle cx="49" cy="49" r="41" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+            <circle id="ringArc" cx="49" cy="49" r="41" fill="none" stroke="url(#g1)" stroke-width="9"
+                    stroke-linecap="round" stroke-dasharray="257.6" stroke-dashoffset="257.6"
+                    style="transition:stroke-dashoffset .6s"/>
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#4f8cff"/><stop offset="100%" stop-color="#8b5cff"/>
+            </linearGradient></defs>
+          </svg>
+          <div class="val" id="ringVal">0<small>%</small></div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="ovline">
+            <div>课时 <b id="ovVideos">—</b></div>
+            <div>已完成 <b id="ovFinished">—</b></div>
+            <div>总时长 <b id="ovTotal">—</b></div>
+            <div>已看 <b id="ovWatched">—</b></div>
+          </div>
+          <div class="nowplaying" id="nowBox" style="display:none">
+            <span class="badge" id="nowIdx">—</span>
+            <span id="nowName"></span>
+            <span id="nowPct"></span>
+          </div>
+          <div class="hint" id="ovHint">选一门课，看章节和逐集进度</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1">
+      <h3>章节目录 <span class="n" id="treeMeta"></span></h3>
+      <div id="tree" class="scroll"></div>
+    </div>
+  </div>
+
+  <!-- 右：控制 + 事件 -->
+  <div class="col right">
+    <div class="card">
+      <h3>运行控制</h3>
+      <div class="field">
+        <label>播放倍速 <b id="spdVal">1.5×</b></label>
+        <input type="range" id="speed" min="1" max="2" step="0.1" value="1.5">
+      </div>
+      <div class="field">
+        <label>单课限时（分钟，0 = 不限）</label>
+        <input type="number" id="limit" value="0" min="0" max="600">
+      </div>
+      <div class="sw">
+        <span>跳过已完成的课时</span>
+        <div class="toggle on" id="tgSkip"><i></i></div>
+      </div>
+      <div id="captchaBox" class="warnbox" style="display:none">
+        <div class="wb-t">触发人机验证，任务已暂停</div>
+        <div class="wb-d">去浏览器里把这门课的验证过一次，回来点「开始刷课」即可续跑（已完成的集不会重播）。</div>
+        <button id="btnOpenCourse" style="align-self:flex-start">打开课程页</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="primary" id="btnRun" style="flex:1;justify-content:center" disabled>开始刷课</button>
+        <button class="danger" id="btnStop" disabled>停止</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>本次完成</span><b id="stDone">0</b></div>
+        <div class="stat"><span>失败</span><b id="stFail">0</b></div>
+        <div class="stat"><span>弹题作答</span><b id="stAns">0</b></div>
+        <div class="stat"><span>已运行</span><b id="stTime">0s</b></div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1">
+      <div class="tabs">
+        <button class="tab active" data-pane="events">事件流 <span class="n" id="evCount">0</span></button>
+        <button class="tab" data-pane="answers">答题记录 <span class="n" id="ansCount">0</span></button>
+      </div>
+      <div id="events" class="scroll"><div class="empty">暂无事件<span class="sub">开始刷课后，播放 / 完成 / 弹题记录会实时出现在这里</span></div></div>
+      <div id="answers" class="scroll" style="display:none"><div class="empty">还没有弹题作答记录<span class="sub">视频播到弹题点时会自动作答，这里留痕</span></div></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = s => { s=Math.max(0,Math.round(+s||0)); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
+  return h? `${h}h${String(m).padStart(2,'0')}m` : m? `${m}m${String(x).padStart(2,'0')}s` : `${x}s`; };
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clampPct = v => Math.max(0,Math.min(100,+v||0));
+
+/* 带超时的 JSON 请求：后端在刷课时可能短暂占满事件循环，
+   超时要落成可见的错误态，而不是永远转「加载中…」。 */
+async function jget(url,ms=12000){
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(),ms);
+  try{
+    const r=await fetch(url,{signal:ac.signal});
+    return await r.json();
+  }finally{ clearTimeout(t); }
+}
+async function jpost(url,body,ms=15000){
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(),ms);
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:body===undefined?undefined:JSON.stringify(body),signal:ac.signal});
+    return await r.json();
+  }finally{ clearTimeout(t); }
+}
+function netErr(e){
+  const abort = e && (e.name==='AbortError' || /abort/i.test(e.message||''));
+  if(abort) return '接口超时'+(S.running?'（刷课运行中，课程接口暂时没排上队）':'（后端响应太慢）');
+  return (e && e.message) || '网络错误';
+}
+function retryBtn(what){
+  return `<button class="retry" data-retry="${what}">重试</button>`;
+}
+
+const S = { rac:null, racName:'', tree:null, since:0, running:false, skip:true, speed:1.5, limit:0,
+            evs:[], cookieOk:false, coursesReady:false, curVid:null,
+            stateBusy:false, evBusy:false, grabbing:false,
+            site:null,                       // 由 /api/state 下发（站点 URL 模板），避免前端写死
+            speedTouched:false,              // 用户手动拖过倍速后，不再被配置默认值覆盖
+            lastStatePct:0, lastStateVid:null, lastStartedAt:null, treeKind:'nocookie' };
+let lastVid=null, userScrollAt=0, lastAutoScroll=0;
+
+/* ================= 空状态 ================= */
+function emptyCourses(html){
+  $('#courses').innerHTML = html || (
+    S.cookieOk
+      ? '<div class="empty">加载中…</div>'
+      : '<div class="empty"><span class="key">未连接登录态</span>还没有可读的会话<span class="sub">点右上角「抓登录态」，从已登录的浏览器取回 Cookie 后，这里会列出你的共享课</span></div>');
+  if(!html) $('#courseCount').textContent = S.cookieOk ? '…' : '—';
+}
+function emptyTree(kind,msg){
+  const map = {
+    loading:  '<div class="empty">加载章节…</div>',
+    nocookie: '<div class="empty"><span class="key">未连接登录态</span>先抓登录态，再选课程<span class="sub">右上角「抓登录态」会从已登录的浏览器取会话</span></div>',
+    nocourse: '<div class="empty"><span class="key">未选择课程</span>从左侧挑一门课<span class="sub">选中后这里会列出章节、测验和每一集的观看进度</span></div>',
+    nochapter:'<div class="empty"><span class="key">课程无章节</span>这门课没有拿到章节数据<span class="sub">课程结构可能尚未同步，点右上角「刷新」重试</span>'+retryBtn('course')+'</div>',
+    error:    `<div class="empty err"><span class="key">加载失败</span>${esc(msg||'未知错误')}<span class="sub">可以点下面按钮重试，或等刷课结束后再刷新</span>${retryBtn('course')}</div>`
+  };
+  $('#tree').innerHTML = map[kind] || map.nocourse;
+  S.treeKind=kind;
+  const rb=$('#tree .retry');
+  if(rb) rb.onclick=()=>{ emptyTree('loading'); loadCourse({keep:false}); };
+  $('#treeMeta').textContent = '';
+  if(kind!=='loading') resetOverview();
+}
+function resetOverview(){
+  $('#ringVal').innerHTML = '0<small>%</small>';
+  $('#ringArc').style.strokeDashoffset = 257.6;
+  ['ovVideos','ovFinished','ovTotal','ovWatched'].forEach(id=>$('#'+id).textContent='—');
+  $('#ovHint').textContent = '选一门课，看章节和逐集进度';
+}
+
+/* ================= 事件 ================= */
+function addEvent(e){
+  S.evs.push(e); if(S.evs.length>400) S.evs.shift();
+  const box=$('#events');
+  const seed=box.querySelector('.empty'); if(seed) seed.remove();
+  const d=new Date(e.t*1000), ts=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  let extra='';
+  if(e.kind==='answer' && e.options){
+    extra=' · ' + e.options.map(o=>`${o.correct?'✔':'·'}${o.text}`).slice(0,4).join(' | ');
+  }
+  const el=document.createElement('div');
+  el.className='ev '+e.kind;
+  el.innerHTML=`<time>${ts}</time><span class="k">${esc(e.kind)}</span><span class="m">${esc(e.msg)}${esc(extra)}</span>`;
+  box.appendChild(el);
+  while(box.children.length>400) box.removeChild(box.firstChild);
+  box.scrollTop=box.scrollHeight;
+  $('#evCount').textContent=S.evs.length;
+}
+async function pollEvents(){
+  if(S.evBusy) return;
+  S.evBusy=true;
+  try{
+    const j=await jget(`/api/events?since=${S.since}`,8000);
+    (j.items||[]).forEach(e=>{ addEvent(e); S.since=Math.max(S.since,e.id); });
+  }catch(_){}
+  finally{ S.evBusy=false; }
+}
+
+/* ================= 答题记录（弹题留痕） ================= */
+async function pollAnswers(){
+  if(S.ansBusy) return;
+  S.ansBusy=true;
+  try{
+    const j=await jget('/api/answers?limit=30',8000);
+    if(!j.ok) return;
+    $('#ansCount').textContent=j.total;
+    const box=$('#answers');
+    if(!j.items.length){
+      box.innerHTML='<div class="empty">还没有弹题作答记录<span class="sub">视频播到弹题点时会自动作答，这里留痕</span></div>';
+      return;
+    }
+    box.innerHTML=j.items.map(a=>{
+      const picked=new Set(String(a.chosen||'').split(',').filter(Boolean));
+      const opts=(a.options||[]).map(o=>{
+        const isPick=picked.has(String(o.id));
+        const cls=isPick?(o.correct?'pick':'pick bad'):'';
+        return `<span class="${cls}" title="${esc(o.text)}">${esc(o.text||o.id)}</span>`;
+      }).join('');
+      const d=new Date((a.t||0)*1000);
+      const ts=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+      return `<div class="ans">
+        <div class="ans-h"><span>${ts}</span><span>#${esc(a.questionId||'—')}</span><span>集 ${esc(a.videoId||'—')}</span><span>${a.source==='server_result'?'服务端下发答案':'AI 作答'}</span></div>
+        <div class="ans-stem">${esc(a.stem||'（无题干文本）')}</div>
+        <div class="ans-o">${opts}</div>
+      </div>`;
+    }).join('');
+  }catch(_){}
+  finally{ S.ansBusy=false; }
+}
+
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b===btn));
+    const pane=btn.dataset.pane;
+    $('#events').style.display = pane==='events'?'':'none';
+    $('#answers').style.display = pane==='answers'?'':'none';
+    if(pane==='answers') pollAnswers();
+  };
+});
+
+/* ================= 状态 ================= */
+async function pollState(){
+  if(S.stateBusy) return;          // 后端卡住时不让请求排队堆叠
+  S.stateBusy=true;
+  try{
+    const s=await jget('/api/state',6000);
+    S.site = s.site || S.site;           // 站点 URL 模板 / 首页（后端配置下发）
+    // 配置里的默认倍速落到 UI（滑块 + 数字）。用户动过滑块之后就不再覆盖。
+    if(!S.speedTouched && s.defaults && typeof s.defaults.speed==='number'){
+      S.speed=s.defaults.speed;
+      const sp=$('#speed'); if(sp) sp.value=String(S.speed);
+      const sv=$('#spdVal'); if(sv) sv.textContent=S.speed.toFixed(1)+'×';
+    }
+    // cookie（后端只回传 uuid 前 6 位，完整 uuid 不出服务端）
+    const c=s.cookie||{};
+    const wasOk=S.cookieOk; S.cookieOk=!!c.ok;
+    $('#cookieDot').className='dot '+(c.ok?'on':'bad');
+    $('#cookieTxt').textContent=c.ok? `已登录 · ${c.count} cookie · ${String(c.uuid_prefix||'').slice(0,6)}***` : '未连接登录态';
+    if(!c.ok && wasOk){ S.coursesReady=false; emptyCourses(); emptyTree('nocookie'); }
+    if(c.ok && !wasOk && !S.coursesReady) loadCourses();
+    // 登录态就绪、但还没选课时，占位文案要从「未连接登录态」换成「未选择课程」
+    if(S.cookieOk && !S.rac && S.treeKind==='nocookie') emptyTree('nocourse');
+    // task
+    const st=s.status;
+    const map={idle:['空闲',''],running:['运行中','run'],stopping:['停止中','run'],done:['已完成','on'],
+               error:['出错','bad'],captcha:['等待验证码','bad']};
+    const [txt,cls]=map[st]||[st,''];
+    $('#taskDot').className='dot '+cls; $('#taskTxt').textContent=txt;
+    S.running = (st==='running'||st==='stopping');
+    $('#btnRun').disabled = S.running || !S.rac;
+    $('#btnRun').textContent = S.running ? '运行中…' : '开始刷课';
+    $('#btnStop').disabled = !S.running;
+    $('#captchaBox').style.display = (st==='captcha') ? 'flex' : 'none';
+    // stats
+    $('#stDone').textContent=s.done_count||0;
+    const fail=s.fail_count||0;
+    $('#stFail').textContent=fail;
+    $('#stFail').className = fail>0?'bad':'';
+    $('#stAns').textContent=s.answer_count||0;
+    $('#stTime').textContent = s.started_at ? fmt((s.finished_at||s.now)-s.started_at) : '0s';
+    // now playing（video.videoId ↔ .vrow[data-vid]）
+    if(s.video && s.video.videoId){
+      // 后端防检测随机暂停会让 played_time 回卷，同一集内的进度显示只增不减；
+      // 换集（videoId 变）或换新任务（started_at 变）才归零——state.pct 是「本集进度」，
+      // 不在换集时归零的话，第一集播到 99% 后面每集都会卡在 99%。
+      const vid=String(s.video.videoId), started=s.started_at||0;
+      if(started!==S.lastStartedAt || vid!==S.lastStateVid){
+        S.lastStartedAt=started; S.lastStateVid=vid; S.lastStatePct=0;
+      }
+      const shown=Math.max(S.lastStatePct, +s.pct||0);
+      S.lastStatePct=shown;
+      $('#nowBox').style.display='flex';
+      $('#nowIdx').textContent=`${s.video.idx}/${s.video.total}`;
+      $('#nowName').textContent=s.video.name||'';
+      $('#nowName').title=s.video.name||'';
+      $('#nowPct').textContent=shown.toFixed(1)+'%';
+      markPlaying(vid);
+      // 章节树只在选课时拉一次（单次约 1.4s，不能进轮询）。但「完成数」或「当前集」变化时
+      // 必须补一次静默刷新，否则界面停在旧进度上：已经刷完的集还显示 59%，
+      // 而高亮已经跳到下一集，看着就像「没刷完就跳集」。
+      if(S.running && (s.done_count !== S.lastDone || vid !== S.lastRefreshVid)){
+        S.lastDone = s.done_count;
+        S.lastRefreshVid = vid;
+        scheduleTreeRefresh();
+      }
+    }else{
+      $('#nowBox').style.display='none';
+      markPlaying(null);
+    }
+  }catch(_){}
+  finally{ S.stateBusy=false; }
+}
+
+/* 静默刷新章节树：合并连发请求，保留用户展开的章节与滚动位置 */
+let _treeTimer=null;
+function scheduleTreeRefresh(){
+  if(_treeTimer) return;
+  _treeTimer=setTimeout(()=>{
+    _treeTimer=null;
+    loadCourse({keep:true, silent:true});
+  }, 800);
+}
+
+/* 运行中高亮正在播的一集，并在它换集 / 滚出可视区时自动滚过去；
+   用户 6 秒内手动滚过章节目录就不再抢滚动条，自动回位最多 10 秒一次。 */
+function markPlaying(vid,force){
+  document.querySelectorAll('.vrow.playing').forEach(el=>el.classList.remove('playing'));
+  S.curVid = vid||null;
+  if(!vid){ lastVid=null; return; }
+  const el=document.querySelector(`.vrow[data-vid="${vid}"]`);
+  if(!el) return;
+  el.classList.add('playing');
+  el.closest('.ch')?.classList.add('open');
+  const changed = vid!==lastVid;
+  lastVid=vid;
+  const now=Date.now();
+  if(!changed && !force && now-lastAutoScroll<10000) return;   // 防抖：别每 1.2s 都滚一次
+  if(now-userScrollAt < 6000) return;                          // 尊重用户自己的滚动
+  const box=$('#tree'), cb=box.getBoundingClientRect(), rb=el.getBoundingClientRect();
+  const inView = rb.top >= cb.top+6 && rb.bottom <= cb.bottom-6;
+  if(changed || force || !inView){
+    try{ el.scrollIntoView({block:'center',behavior:changed?'smooth':'auto'}); }
+    catch(_){ el.scrollIntoView({block:'center'}); }
+    lastAutoScroll=now;
+  }
+}
+$('#tree').addEventListener('wheel',()=>{userScrollAt=Date.now();},{passive:true});
+$('#tree').addEventListener('pointerdown',()=>{userScrollAt=Date.now();},{passive:true});
+$('#tree').addEventListener('touchmove',()=>{userScrollAt=Date.now();},{passive:true});
+// 拖动滚动条 / 键盘翻页不走 wheel，这里按「不是我们刚触发的滚动」判为用户操作
+$('#tree').addEventListener('scroll',()=>{
+  if(Date.now()-lastAutoScroll > 400) userScrollAt=Date.now();
+},{passive:true});
+
+/* ================= 课程 ================= */
+async function loadCourses(){
+  if(!S.cookieOk){ emptyCourses(); return; }
+  emptyCourses();
+  try{
+    const j=await jget('/api/courses',15000);
+    if(!j.ok) throw new Error(j.error||'拉取课程失败');
+    S.coursesReady=true;
+    const list=j.courses||[];
+    $('#courseCount').textContent=list.length;
+    const box=$('#courses'); box.innerHTML='';
+    if(!list.length){
+      box.innerHTML='<div class="empty"><span class="key">没有课程</span>这个账号没有可刷的共享课<span class="sub">换个登录态，或确认教务平台里已加入课程</span></div>';
+      return;
+    }
+    list.forEach(c=>{
+      const p=clampPct(parseFloat(String(c.progress_text||'0').replace('%','')));
+      const sub=[c.teacher,c.last_lesson].filter(Boolean).join(' · ');
+      const el=document.createElement('div');
+      el.className='citem'+(c.rac===S.rac?' active':'');
+      el.dataset.rac=c.rac;
+      el.title=c.name+(sub?` — ${sub}`:'');
+      el.innerHTML=`
+        <img src="${esc(c.img||'')}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
+        <div class="meta">
+          <div class="t">${esc(c.name)}</div>
+          <div class="s">${esc(sub||'—')}</div>
+          <div class="mini"><i style="width:${p}%"></i></div>
+        </div>`;
+      el.onclick=()=>selectCourse(c.rac,c.name);
+      box.appendChild(el);
+    });
+    // 自动打开：优先 URL hash 里指定的课，否则默认选第一门。
+    // 不做这件事的话，每次刷新中栏都是空的（S.rac=null → 不拉章节树），
+    // 看起来就像「控制台坏了/点不动」。加 #stay 可以禁用自动选中。
+    const hp=new URLSearchParams(location.hash.slice(1));
+    const want=hp.get('rac');
+    if(!S.rac && list.length && !hp.get('stay')){
+      const hit=(want && list.find(x=>x.rac===want)) || list[0];
+      if(hit) selectCourse(hit.rac,hit.name);
+    }
+  }catch(e){
+    S.coursesReady=false;
+    $('#courses').innerHTML=`<div class="empty err"><span class="key">加载失败</span>${esc(netErr(e))}<span class="sub">课程列表暂时拿不到，点下面重试</span>${retryBtn('courses')}</div>`;
+    $('#courseCount').textContent='—';
+    const rb=$('#courses .retry');
+    if(rb) rb.onclick=()=>loadCourses();
+  }
+}
+
+async function selectCourse(rac,name){
+  S.rac=rac; S.racName=name||rac;
+  S.lastStatePct=0; S.lastStateVid=null;      // 换课后本集进度重新计
+  $('#ovCourse').textContent=S.racName;
+  $('#ovCourse').title=S.racName;
+  document.querySelectorAll('.citem').forEach(el=>el.classList.toggle('active',el.dataset.rac===rac));
+  $('#btnRun').disabled = S.running || !S.rac;
+  emptyTree('loading');
+  await loadCourse({keep:false});
+}
+
+async function loadCourse({keep=false,silent=false}={}){
+  if(!S.rac) return;
+  try{
+    const j=await jget(`/api/course/${S.rac}`,20000);
+    if(!j.ok) throw new Error(j.error||'加载失败');
+    const t=j.tree||{};
+    S.tree=t;
+    if(!(t.chapters||[]).length){ emptyTree('nochapter'); return; }
+    renderTree(t,keep);
+  }catch(e){ if(!silent) emptyTree('error',netErr(e)); }
+}
+
+function renderTree(t,keep){
+  const st=t.stats||{};
+  const chs=t.chapters||[];
+  // 概览：数字与环都跟随 /api/course 返回的 stats.pct
+  $('#ovVideos').textContent=st.videos??'—';
+  $('#ovFinished').textContent=st.finished??'—';
+  $('#ovTotal').textContent=fmt(st.total_sec);
+  $('#ovWatched').textContent=fmt(st.done_sec);
+  const pct=clampPct(st.pct);
+  $('#ringVal').innerHTML=`${pct.toFixed(0)}<small>%</small>`;
+  $('#ringArc').style.strokeDashoffset=(257.6*(1-pct/100)).toFixed(1);
+  $('#ovHint').textContent=`${chs.length} 个章节 · 共 ${st.videos??0} 个课时 · 已完成 ${st.finished??0}`;
+  $('#treeMeta').textContent=`${chs.length} 章 · ${st.videos??0} 集 · ${pct.toFixed(0)}%`;
+
+  const tree=$('#tree');
+  const prevScroll = keep? tree.scrollTop : 0;
+  const openSet = keep
+    ? new Set([...tree.querySelectorAll('.ch.open')].map(e=>+e.dataset.ci).filter(n=>!isNaN(n)))
+    : new Set([0]);
+  tree.innerHTML='';
+  chs.forEach((ch,ci)=>{
+    const vids=ch.videos||[];
+    const done=vids.filter(v=>v.done_flag).length;
+    const allDone = vids.length>0 && done===vids.length;
+    const el=document.createElement('div');
+    el.className='ch'+(openSet.has(ci)?' open':'')+(allDone?' alldone':'');
+    el.dataset.ci=ci;
+    el.innerHTML=`
+      <div class="chhead" title="${esc(ch.name)}">
+        <span class="arw">▶</span>
+        <span class="nm">${esc(ch.name)}</span>
+        ${ch.exam?'<span class="tag ex">测验</span>':''}
+        ${ch.isPass?'<span class="tag ok">已通过</span>':''}
+        <span class="ct ${allDone?'ok':''}" title="已完成 ${done} / 共 ${vids.length} 集">${done}/${vids.length}</span>
+      </div>
+      <div class="vlist">
+        ${vids.map(v=>`
+          <div class="vrow ${v.done_flag?'done':''}" data-vid="${esc(v.videoId)}" title="${esc(v.name)}">
+            <span class="ic">${v.done_flag?'✔':'▷'}</span>
+            <span class="vname">${esc(v.name)}</span>
+            <span class="vbar"><i style="width:${v.done_flag?100:clampPct(v.pct)}%"></i></span>
+            <span class="vt">${v.done_flag?100:Math.round(clampPct(v.pct))}% · ${fmt(v.sec)}</span>
+          </div>`).join('')}
+      </div>`;
+    el.querySelector('.chhead').onclick=()=>el.classList.toggle('open');
+    tree.appendChild(el);
+  });
+  tree.scrollTop=prevScroll;
+  if(S.curVid) markPlaying(S.curVid,true);
+}
+
+/* ================= 动作 ================= */
+$('#btnSide').onclick=()=>{
+  const hid=document.body.classList.toggle('hideLeft');
+  $('#btnSide').textContent = hid ? '▶ 课程' : '◀ 课程';
+  $('#btnSide').classList.toggle('toggled',!hid);
+};
+
+$('#btnGrab').onclick=async()=>{
+  const b=$('#btnGrab'); if(S.grabbing) return;
+  S.grabbing=true; b.disabled=true; b.textContent='抓取中…';
+  try{
+    const j=await jpost('/api/cookie/grab',undefined,60000);
+    if(!j.ok) alert(j.error||'抓取登录态失败');
+  }catch(e){ alert('抓取登录态失败：'+netErr(e)); }
+  finally{
+    S.grabbing=false; b.disabled=false; b.textContent='抓登录态';
+    await pollState();
+    if(S.cookieOk) await loadCourses();
+  }
+};
+
+$('#btnReload').onclick=async()=>{
+  await pollState();
+  if(S.cookieOk) await loadCourses();
+  if(S.rac) await loadCourse({keep:false});
+};
+
+$('#btnRun').onclick=async()=>{
+  if(!S.rac) return;
+  try{
+    const j=await jpost('/api/run',{rac:S.rac,speed:S.speed,skip_done:S.skip,limit_min:S.limit},15000);
+    if(!j.ok) alert(j.error||'启动失败');
+  }catch(e){ alert('启动失败：'+netErr(e)); }
+  pollState();
+};
+$('#btnOpenCourse').onclick=()=>{
+  if(!S.rac){ alert('先选一门课'); return; }
+  const tpl=(S.site&&S.site.course_url_template)||'https://studyvideoh5.zhihuishu.com/stuStudy?recruitAndCourseId={rac}';
+  window.open(tpl.replace('{rac}',encodeURIComponent(S.rac)), '_blank');
+};
+$('#btnStop').onclick=async()=>{
+  try{ await jpost('/api/stop',undefined,10000); }catch(_){}
+  pollState();
+};
+
+$('#speed').oninput=e=>{ S.speedTouched=true; S.speed=parseFloat(e.target.value); $('#spdVal').textContent=S.speed.toFixed(1)+'×'; };
+$('#limit').oninput=e=>{ S.limit=parseInt(e.target.value||'0',10)||0; };
+$('#tgSkip').onclick=e=>{ S.skip=!S.skip; e.currentTarget.classList.toggle('on',S.skip); };
+
+/* ================= 启动 ================= */
+(async function init(){
+  emptyCourses();
+  emptyTree(S.cookieOk?'nocourse':'nocookie');
+  setInterval(pollState, 1200);      // 轮询先跑起来，别被慢接口的首屏加载堵住
+  setInterval(pollEvents, 1000);
+  setInterval(pollAnswers, 4000);    // 弹题不频繁，4s 足够
+  pollEvents();
+  await pollState();
+  if(S.cookieOk) await loadCourses();
+  else emptyTree('nocookie');
+})();
+</script>
+</body>
+</html>
