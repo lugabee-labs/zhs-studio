@@ -19,32 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-================================================================================
-Third-party notices
-================================================================================
-
-1) fuckZHS — https://github.com/VermiIIi0n/fuckZHS
-   License: MIT License, Copyright (c) VermiIIi0n
-
-   This project's API layer (course tree / progress reporting / quiz answering)
-   is implemented by calling into "fuckZHS" at runtime. **No upstream source
-   code is vendored in this repository**: users install the engine separately
-   and point `engine_home` (or ZHS_ENGINE_HOME) at it, so upstream code is not
-   redistributed here.
-
-   If you ever vendor upstream files into this repository, you MUST keep the
-   upstream MIT notice above (e.g. `third_party/fuckZHS/LICENSE`) and list it in
-   this section.
-
-   Upstream is a single-author project; the polite thing to do — and what this
-   project does — is to credit it in README.md and pin a specific commit/tag so
-   builds stay reproducible.
-
-2) Python dependencies (fastapi, uvicorn, pydantic, websocket-client, requests,
-   openai, tiktoken, pycryptodome, pillow) are installed from PyPI under their
-   own licenses and are not redistributed in this repository.
-
-3) "zhihuishu" / 智慧树 is a trademark of its respective owner. This project is
-   an unofficial client-side tool: it is not affiliated with, endorsed by, or
-   supported by the platform.

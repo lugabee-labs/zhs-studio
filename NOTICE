@@ -1,0 +1,34 @@
+ZHS Studio — Third-party notices
+================================
+
+本项目本体以 MIT 许可发布（见 LICENSE）。以下为第三方组件与素材的说明。
+本文件不属于许可证正文，仅为致谢与合规声明。
+
+
+1) fuckZHS — https://github.com/VermiIIi0n/fuckZHS
+-------------------------------------------------
+License: MIT License, Copyright (c) VermiIIi0n
+
+本项目的 API 层（课程树获取 / 进度上报 / 弹题作答）在运行时通过调用
+"fuckZHS" 实现。**本仓库不包含、不分发上游任何源码**：使用者需自行安装
+该引擎，并把本项目的 `engine_home`（或环境变量 `ZHS_ENGINE_HOME`）指向
+引擎根目录（能看到 fucker.py 的那一层）。
+
+若你 fork 后把上游文件 vendor 进本仓库，必须同时保留上游的 MIT 声明
+（例如放在 `third_party/fuckZHS/LICENSE`），并在本文件登记。
+
+上游为单人维护项目。本项目的做法是：在 README 中致谢，并建议固定
+commit/tag 以保证构建可复现。
+
+
+2) Python 依赖
+--------------
+fastapi / uvicorn / pydantic / websocket-client / requests / openai /
+tiktoken / pycryptodome / pillow 均从 PyPI 安装，各自遵循其自身许可，
+不在本仓库内分发。版本见 requirements.txt。
+
+
+3) 商标与平台关系
+----------------
+"zhihuishu" / "智慧树" / "知到" 为其各自权利人的商标。本项目是**非官方**
+的客户端侧工具，与平台无隶属、无背书、无支持关系。
