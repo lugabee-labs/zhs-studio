@@ -168,10 +168,36 @@ flowchart LR
 | 9 | GET | `/api/session/{run_id}` | `events`(默认 200)、`episodes`(默认 500) | `{ok, meta, episodes, events, answers}` | **前端未用**：外部脚本 / 排查 |
 | 10 | POST | `/api/run` | body `{rac, speed: float\|null, skip_done, limit_min}` | `{ok:true}`；已在跑 → **409** | 前端「开始刷课」 |
 | 11 | POST | `/api/stop` | — | `{ok:true}`，幂等 | 前端「停止」 |
+| 12 | GET | `/api/health` | — | `{ok, version, uptime_sec}`，**不含 cookie / uuid / rac** | 各端启动探活、局域网连通性检查 |
 
 `POST /api/run` 的 `speed` 传 `null` 时用 `task.default_speed`；前端目前总是传具体数值。
 
-### 3.1 契约细节（改前端/改后端都要看）
+### 3.1 跨端调用面（CORS / 局域网 / 探活）
+
+同一套接口要被三种客户端调用——浏览器、Windows 桌面端的 pywebview 内嵌页、以及将来的移动端遥控页。为此补了三样东西。
+
+**CORS**（`app.py` 注册 `CORSMiddleware`）：
+
+| 项 | 值 | 为什么 |
+|---|---|---|
+| `allow_origins` | `["*"]` | 各端来源不同（`http://127.0.0.1:<port>`、局域网 IP、未来 `capacitor://localhost` 之类）；配 `server.cors_origins` 可收紧成白名单 |
+| `allow_credentials` | `False` | `*` 与 credentials 不能共存；本服务本来就没有 cookie 鉴权 |
+| `allow_methods` | `GET, POST, OPTIONS` | 只有这两种方法 |
+| `max_age` | `600` | 预检缓存 10 分钟，减少 OPTIONS 往返 |
+
+注意：**CORS 响应头只在请求带 `Origin` 时才有**。裸 `curl` 打 `/api/health` 看不到 `Access-Control-Allow-Origin` 是正常现象，别误判成没生效——验证时带上 `-H "Origin: http://example.com"`。
+
+**局域网监听**（`zhs_config.server.allow_lan`）：
+
+`allow_lan: true` 且 `host` 仍是回环地址时，`zhs_config.load()` 会把 host 自动归一化成 `0.0.0.0`——只翻一个开关，不用同时改 `host`（这两个字段各改一半是最容易配错的地方）。启动时 `run.py` / `start.ps1` 打印 `lan_urls()` 的结果；只绑回环时它返回空列表，**不给假地址**。实现用 `local_ipv4s()`（`getaddrinfo` 优先、UDP 出口探测兜底，过滤 `127.*` 与 `169.254.*`），纯 stdlib，不引第三方。
+
+**探活**（`GET /api/health`）：
+
+只回 `{ok, version, uptime_sec}` 三个键，`version` 取自 `zhs_config.APP_VERSION`（单点定义，不要在别处再写一份版本号）。刻意不含 `uuid` / `cookie` / `rac`——各端可以先用它在局域网里探通，再决定要不要拉真实数据。
+
+> ⚠️ **绑 `0.0.0.0` 等于把面板暴露到局域网**：服务没有鉴权，且 `POST /api/cookie/grab` 会往磁盘写登录态文件。只在可信网络里开，用完关掉。
+
+### 3.2 契约细节（改前端/改后端都要看）
 
 **`/api/state`** 是前端的唯一真相源，前端只依赖这些字段：
 
