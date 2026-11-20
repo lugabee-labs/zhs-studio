@@ -2,7 +2,20 @@
 
 > 把智慧树（知到）共享课的网页播放，变成一个**可停止、可断点续刷、可复盘**的本地面板：自动播完、自动答弹题、每轮留下能直接分析的原始档案。
 
-`MIT` · `Python ≥ 3.10`（实测 3.12.8）· Windows / macOS / Linux 均可起服务 · 单机、只绑 `127.0.0.1`
+`MIT` · `Python ≥ 3.10`（实测 3.12.8）· Windows / macOS / Linux 均可起服务 · 默认只绑 `127.0.0.1`，要让手机连需显式开局域网开关
+
+---
+
+## 两种用法
+
+同一个后端、同一份 `config.json`，两种形态：
+
+| 形态 | 怎么用 | 入口 |
+|---|---|---|
+| **① 后端 + web** | `python run.py`（或 Windows 上的 `.\start.ps1`）起服务，浏览器打开 <http://127.0.0.1:8770/>；把 `server.allow_lan` 设成 `true` 后，同网段的手机/平板也能连这个面板 | 本文件「[快速开始](#快速开始)」 |
+| **② Windows 桌面应用** | `.\desktop\build.ps1` 打成 exe，双击就开一个原生 WebView2 窗口，**不经过浏览器**，关窗口把后台服务一起停干净 | [`desktop/README.md`](desktop/README.md) |
+
+两者跑的是同一个 `app.py`、同一个引擎、同一套 HTTP 接口——桌面版只是把「起服务 + 开页面」这两步包进一个窗口，**不改变刷课行为本身**（见「已知边界」）。
 
 ---
 
@@ -93,6 +106,33 @@ flowchart LR
 
 ---
 
+## HTTP 接口（三端共用）
+
+面板、桌面端窗口、手机遥控端调的是同一组接口，没有「桌面专用」的分支：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/` | 面板本体（`web/index.html`，单文件原生页面） |
+| `GET` | `/api/health` | 探活。**只回三个键** `{ok, version, uptime_sec}`；不含 uuid、cookie 条数、课程 rac、课程名（这个接口在局域网里最容易被顺手扫到，不能当账号探针） |
+| `GET` | `/api/state` | 任务状态 + 登录态摘要（`cookie.ok` / `uuid_prefix`）+ 站点地址 + 默认倍速 |
+| `GET` | `/api/events?since=N` | 事件流增量：`{seq, items[]}` |
+| `GET` | `/api/answers?limit=N` | 弹题作答流水，最新在前 |
+| `POST` | `/api/cookie/grab` | 经 CDP 抓登录态并写 `data/cookies.json`（**会落凭证文件**） |
+| `GET` | `/api/courses` | 课程列表 |
+| `GET` | `/api/course/{rac}` | 单课章节树（逐集进度 + 本轮标记） |
+| `GET` | `/api/sessions?limit=N` | 历史运行档案列表 |
+| `GET` | `/api/session/{run_id}` | 单轮档案：`meta` / `episodes` / `events` / `answers` |
+| `POST` | `/api/run` | 开始刷课（已有任务在跑时返回 `409`） |
+| `POST` | `/api/stop` | 请求停止（在下一个上报点中断，进度已落盘） |
+
+跨源：服务装了 `CORSMiddleware`，`allow_origins` 默认 `*`（`server.cors_origins` 可收紧成白名单），`allow_credentials=False`（`*` 与 credentials 不能共存，浏览器会直接拒），方法限 `GET` / `POST` / `OPTIONS`，预检结果缓存 `max-age=600`。浏览器、pywebview 桌面窗口（`file://` / `null` origin）、规划中的安卓 WebView 壳的 Origin 各不相同，因此各端都能直接调，不需要自己搭反代。
+
+探活约定：任何端启动时先打一次 `GET /api/health`，`ok: true` 才算「连上的是 ZHS Studio 后端」；`version` 取自单点版本源 `zhs_config.APP_VERSION`，`uptime_sec` 是进程启动至今的秒数。桌面端就是靠这个接口决定「窗口什么时候开」。
+
+> 接口**没有鉴权**：没有 token、没有账号校验，登录态是服务端文件 `data/cookies.json`。开了 `allow_lan` 等于把这些读写学习状态的接口放进局域网，前提是你在信得过的网络里（见「已知边界」）。
+
+---
+
 ## 实测数据
 
 以下数字全部来自 **14 轮真实运行档案**（14,120 条事件 / 83 集 / 2,714 个进度采样 / 104 条弹题记录，两门共享课），不是估算：
@@ -164,9 +204,10 @@ export ZHS_ENGINE_HOME=/path/to/fuckZHS     # Windows PowerShell: $env:ZHS_ENGIN
 ### 启动
 
 ```bash
-python run.py               # 读 config.json 的 server.host / server.port（默认 127.0.0.1:8770）
-python run.py --port 8780   # 临时换端口
-python run.py --reload      # 开发模式
+python run.py                 # 读 config.json 的 server.host / server.port（默认 127.0.0.1:8770）
+python run.py --port 8780     # 临时换端口
+python run.py --host 0.0.0.0  # 临时允许局域网访问（手机/平板连面板）
+python run.py --reload        # 开发模式
 ```
 
 Windows 上也可以用便捷脚本（探测解释器 → 后台起服务 → 打开界面，读同一份配置）：
@@ -177,6 +218,22 @@ Windows 上也可以用便捷脚本（探测解释器 → 后台起服务 → �
 ```
 
 打开 <http://127.0.0.1:8770/>。
+
+**要让手机/平板连**：在 `config.json` 里加 `"allow_lan": true`（`server` 段内），或把 `server.host` 写成 `0.0.0.0`，然后重启服务。启动日志会直接打印可用的局域网地址（下面是输出形状示例，主机位用 `x` 占位，实际打印的是本机网卡地址）：
+
+```
+局域网可访问地址（手机端 / 平板端填这个）：
+  http://192.168.x.x:8770/     ← 真实网卡（家里 / 公司 Wi-Fi 这条通常是你要的）
+  http://10.88.0.x:8770/       ← 虚拟网卡（WireGuard / VPN 隧道）
+  http://172.21.x.x:8770/      ← 虚拟网卡（WSL / Hyper-V）
+  提示：多网段时选和手机同一个网段的那条（通常是 192.168.x.x）。
+```
+
+同时 stderr 会打一行 `[警告] 正在监听非回环地址 0.0.0.0：本服务无鉴权，请确认网络环境可信。`——这是提醒，不是启动失败。
+
+装了虚拟机 / WireGuard / VPN 的机器会多出几个网段，**填错网段连不上**，按提示挑和手机同网段那条。`start.ps1` 末尾也会打一遍这个地址。
+
+> 本服务没有账号鉴权，`/api/cookie/grab` 还会写出登录态文件——只在信得过的 Wi-Fi 里开。同一网络里有不认识的设备时，把 `allow_lan` 关回去（默认就是关的）。
 
 ### 首次使用四步
 
@@ -197,8 +254,10 @@ Windows 上也可以用便捷脚本（探测解释器 → 后台起服务 → �
 | 键 | 默认值 | 说明 |
 |---|---|---|
 | `engine_home` | `""` | **必填**。上游 fuckZHS 根目录（含 `fucker.py` 的那层）。为空时启动会报 `EngineNotFound` 并打印安装指引 |
-| `server.host` | `"127.0.0.1"` | 监听地址。**不要**改成 `0.0.0.0`：本服务无鉴权，且 `/api/cookie/grab` 会写出凭证文件 |
+| `server.host` | `"127.0.0.1"` | 监听地址。`127.0.0.1` = 只有本机能连；`0.0.0.0` = 同一局域网可访问（等价于打开 `server.allow_lan`）。本服务无鉴权，先读「已知边界」再开 |
 | `server.port` | `8770` | 监听端口，`run.py --port` / `start.ps1 -Port` 可临时覆盖 |
+| `server.allow_lan` | `false` | 局域网开关。设 `true` 且 `host` 仍是回环地址时，加载配置会自动把 `host` 换成 `0.0.0.0`——只想控制局域网开/关时翻这一个键就够（`start.ps1` / 桌面端按同样规则处理）。启动日志会打印可用局域网 URL |
+| `server.cors_origins` | `[]`（= `*`） | 跨源白名单。留空放开 `*`（pywebview 桌面窗口与规划中的安卓 WebView 的 Origin 各不相同，且服务不发 cookie、不带鉴权）；想收紧就填数组，如 `["http://192.168.1.5:8770"]` |
 | `cdp.host` | `"127.0.0.1"` | 浏览器调试端口所在主机 |
 | `cdp.port` | `9222` | 浏览器调试端口 |
 | `cdp.timeout_sec` | `20` | CDP 连接超时 |
@@ -250,6 +309,7 @@ logs/                              # uvicorn stdout / stderr（不入库）
 - `answers.jsonl`（全局）⊇ 各轮 `sessions/*/answers.jsonl`。
 - `episodes.jsonl` 的 `reason`：`done` / `stopped` / `captcha` / `limit` / `error` / `interrupted`；最早两轮的旧记录可能**整行没有 `reason` 键**，统计时要按 `ok` + `events.jsonl` 交叉判定，不能只看 `reason`。
 - 这些文件含课程名、课时名、弹题题干与答案，**属于个人学习数据**，分享日志前请先脱敏。
+- 桌面版（`desktop\`）用的是同一套目录名，但落在 **exe 旁边**而不是 `_internal\`：`data\`（含 `cookies.json`、`webview\` WebView2 profile）、`shots\`、`logs\desktop.log`。详见 [`desktop/README.md`](desktop/README.md)。
 
 ---
 
@@ -265,7 +325,9 @@ logs/                              # uvicorn stdout / stderr（不入库）
 | **倍速上限** | 上游默认 1.5×，本项目也只在 1.5× 设置下实测过（实际推进约 1.64×）。更高倍速未经本项目验证，上游 README 提示 1.8× 以上有风控风险——想调请自行承担风险 |
 | **章节测验 / 期末** | 面板未接（引擎有 AI 考试能力，需要 `courseId` + `classId`，且需抓一次真实测验请求确定字段） |
 | **单点登录** | 平台登录票据是单点的：在手机 App 或别处再登录一次，面板的登录态就失效 → 重新抓一次 cookie |
-| **服务无鉴权** | 只应绑 `127.0.0.1`。`/api/cookie/grab` 无鉴权、会写凭证文件；**不要把端口映射到局域网或公网** |
+| **服务无鉴权** | 接口没有 token / 账号校验，`/api/cookie/grab` 还会写出登录态文件。默认只绑 `127.0.0.1`；`server.allow_lan`（= `host: 0.0.0.0`）只为「同网段手机遥控 + 看进度」准备，**不要把端口映射到公网**。同一 Wi-Fi 里有不认识的设备时，把开关关回去 |
+| **桌面版不改变引擎行为** | `desktop\` 只是把「起服务 + 开页面」包进一个 exe：**91% 完成阈值、验证码要人工过、单点登录被顶掉、倍速上限与风控**这些全部照旧（见本表其余各行）。换形态不换引擎，别指望桌面版能绕过任何一条 |
+| **exe / APK 不入库** | 仓库只留构建脚本与源码，`dist_exe/` 已在 `.gitignore` 里。要 exe 就本地跑 `.\desktop\build.ps1`（约 1~2 分钟，需 PyInstaller + pywebview），或从 GitHub Releases 取；不提交二进制是刻意约定，不是缺文件 |
 | **平台接口变动** | 引擎依赖平台接口结构，平台升级即可能失效。引擎不在本仓库内，失效时需跟进上游更新 |
 
 ---
@@ -297,6 +359,7 @@ logs/                              # uvicorn stdout / stderr（不入库）
 
 | 文档 | 内容 |
 |---|---|
+| [`desktop/README.md`](desktop/README.md) | Windows 桌面端：构建（PyInstaller + pywebview）、onedir vs onefile、首次运行 `config.json`、端口与局域网、数据落点、Defender 排除、已知限制与排错表 |
 | [`docs/architecture.md`](docs/architecture.md) | 后端模块划分、接口清单与契约、关键设计决策（D1–D14）、踩坑记录（P1–P12）、数据模型、改造路线与已知债务 |
 | [`docs/log-analysis.md`](docs/log-analysis.md) | 14 轮 / 14,120 事件的数据实测：每集耗时分布、倍速口径、暂停与验证码归因、弹题覆盖面、哪些数字不能引用 |
 | [`docs/code-audit.md`](docs/code-audit.md) | 开源前审计：硬编码清单、敏感信息清单、必改项、许可证核对、依赖清单与配置草案 |
@@ -320,3 +383,9 @@ logs/                              # uvicorn stdout / stderr（不入库）
 
 **换电脑 / 换用户 / 换目录**
 不用改代码：所有路径来自 `config.json` 或环境变量，`data/` 与 `.venv/` 都不入库，重建即可。
+
+**手机 / 平板打不开面板**
+三步按顺序查：① 服务端日志里有没有打印「局域网可访问地址」——没打印说明还在只绑回环（`allow_lan` 没生效，或改完没重启）；② 手机和 PC 是否同网段——日志里有多条地址时选和手机同网段那条；③ Windows 防火墙是否拦住入站（管理员 PowerShell 放行一次：`New-NetFirewallRule -DisplayName "ZHS Studio" -Direction Inbound -Protocol TCP -LocalPort 8770 -Action Allow`）。
+
+**桌面版双击没反应 / 窗口里是「缺少 fuckZHS 引擎」**
+看 exe 旁边的 `logs\desktop.log`（每次启动都写）。这一步的细节、端口避让与数据落点见 [`desktop/README.md`](desktop/README.md) §6–§7、§10。
