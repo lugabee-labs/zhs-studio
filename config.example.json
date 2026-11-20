@@ -4,12 +4,18 @@
     "必填：engine_home —— 指向 fuckZHS 引擎仓库的根目录（能看到 fucker.py 的那一层）。",
     "相对路径一律相对本文件所在的仓库根目录解析；也可以用环境变量覆盖：",
     "ZHS_CONFIG / ZHS_ENGINE_HOME（旧名 FZ_HOME 兼容）/ ZHS_DATA_DIR / ZHS_HOST / ZHS_PORT。",
-    "本文件只是样例，不得写入任何真实课程号、cookie、uuid 或本机绝对路径。"
+    "本文件只是样例，不得写入任何真实课程号、cookie、uuid 或本机绝对路径。",
+    "",
+    "server.host —— 监听地址。127.0.0.1 = 只有本机能连（默认）；0.0.0.0 = 允许同一局域网内的手机/平板访问面板（遥控 + 看进度）。",
+    "server.allow_lan —— 局域网开关。true 且 host 仍是 127.0.0.1 时，程序会自动把 host 换成 0.0.0.0；默认 false。",
+    "注意：本服务没有账号鉴权，/api/cookie/grab 还会写出登录态文件。只在你信得过的网络里开 allow_lan；服务启动日志会打印可用的局域网 URL。",
+    "可选：server.cors_origins（数组）—— 想限制跨源来源时填，例如 [\"http://192.168.1.5:8770\"]；不填等于放开 *（纯本地工具、不带 cookie 鉴权，默认即可）。"
   ],
   "engine_home": "<path-to>/fuckZHS-master",
   "server": {
     "host": "127.0.0.1",
-    "port": 8770
+    "port": 8770,
+    "allow_lan": false
   },
   "cdp": {
     "host": "127.0.0.1",

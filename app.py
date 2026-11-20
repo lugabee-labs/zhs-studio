@@ -8,6 +8,11 @@ ZHS Studio — 智慧树（知到）共享课 可视化刷课面板
   * 本机 CDP  —— 免扫码登录：从已登录的 Edge 直接抓 CASLOGC 会话
 
 只在本机跑：python run.py     # 读 config.json 的 server.host / server.port（默认 127.0.0.1:8770）
+要让手机/平板连（遥控 + 看进度）：config.json 里 server.host 改 0.0.0.0，或设 server.allow_lan=true。
+
+三端共用同一个后端，所以：
+  * 装了 CORSMiddleware（web / Windows pywebview / 安卓 WebView 都是跨源调用）；
+  * 提供 GET /api/health 供各端启动时探活（只回版本与 uptime，不含任何账号信息）。
 """
 import json
 import os
@@ -20,6 +25,7 @@ import urllib.parse
 import urllib.request
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -29,6 +35,7 @@ from zhs_engine import load_engine
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = zhs_config.load(here=HERE)          # config.json（可选）+ 环境变量覆盖
 COOKIE_FILE = CFG["cookie_file"]
+APP_START_TS = time.time()                # /api/health 的 uptime 基准（进程启动时刻）
 LOCK = threading.RLock()
 RUN_GATE = threading.Lock()   # /api/run 的 check-and-set 临界区
 
@@ -754,6 +761,24 @@ def _run(rac: str, speed: float, skip_done: bool, limit_min: int):
 # ---------------------------------------------------------------- API
 app = FastAPI(title="ZHS Studio")
 
+# ---- CORS -------------------------------------------------------------
+# 三个客户端（web 面板 / Windows pywebview 桌面窗口 / 安卓 WebView 遥控端）
+# 的来源各不相同：pywebview 里常是 file:// 或 null origin，安卓 WebView 是
+# https://localhost 或 http://<pc-ip>，浏览器里又可能是任意 localhost 端口。
+# 本服务不发 cookie、不带任何鉴权（登录态是 data/cookies.json 这种服务端文件），
+# 所以默认放开 allow_origins=["*"]，allow_credentials 必须保持 False
+# （* 与 credentials 同时为 True 会被浏览器直接拒掉）。
+# 想让来源可枚举：config.json 里写 server.cors_origins=["http://192.168.1.5:8770"]。
+_CORS_ORIGINS = [str(x) for x in (CFG["server"].get("cors_origins") or []) if str(x).strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS or ["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=600,          # 预检结果缓存 10 分钟，省掉每轮请求的额外往返
+)
+
 
 class RunReq(BaseModel):
     rac: str
@@ -761,6 +786,21 @@ class RunReq(BaseModel):
     speed: float | None = None
     skip_done: bool = True
     limit_min: int = 0
+
+
+@app.get("/api/health")
+def health():
+    """连通性探针：桌面端/安卓端启动时先打这个，确认连上的是 ZHS Studio 后端。
+
+    **故意只回三样东西**：ok / version / uptime_sec。
+    uuid、cookie 条数、课程 rac、课程名一概不出现在这里——这个接口在局域网里
+    是最容易被顺手扫到的一个，不能当账号探针用（账号摘要见 /api/state 的 cookie 段）。
+    """
+    return {
+        "ok": True,
+        "version": zhs_config.APP_VERSION,
+        "uptime_sec": round(time.time() - APP_START_TS, 1),
+    }
 
 
 @app.get("/")
