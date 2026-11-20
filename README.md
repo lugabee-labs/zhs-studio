@@ -2,6 +2,8 @@
 
 > 把智慧树（知到）共享课的网页播放，变成一个**可停止、可断点续刷、可复盘**的本地面板：自动播完、自动答弹题、每轮留下能直接分析的原始档案。
 
+> ⚠️ **本项目仅供个人学习研究与技术实践。** 禁止用于代刷、代考、代写、商业牟利，或任何违反平台服务条款与学校学术诚信规定的用途。使用可能导致账号被限制或封禁，**风险自担**。完整条款见 [`DISCLAIMER.md`](DISCLAIMER.md) —— 下载或使用即视为接受。
+
 `MIT` · `Python ≥ 3.10`（实测 3.12.8）· Windows / macOS / Linux 均可起服务 · 默认只绑 `127.0.0.1`，要让手机连需显式开局域网开关
 
 ---
@@ -359,6 +361,8 @@ logs/                              # uvicorn stdout / stderr（不入库）
 
 | 文档 | 内容 |
 |---|---|
+| [`docs/tutorial.md`](docs/tutorial.md) | **新手指南**：从下载到刷完一门课的完整流程，两条路线（exe / 源码）、装引擎、抓登录态、参数怎么设、常见问题 |
+| [`DISCLAIMER.md`](DISCLAIMER.md) | **免责声明**：用途限定、风险自担、平台无关联、合规提示、责任限制。**使用前必读** |
 | [`desktop/README.md`](desktop/README.md) | Windows 桌面端：构建（PyInstaller + pywebview）、onedir vs onefile、首次运行 `config.json`、端口与局域网、数据落点、Defender 排除、已知限制与排错表 |
 | [`docs/architecture.md`](docs/architecture.md) | 后端模块划分、接口清单与契约、关键设计决策（D1–D14）、踩坑记录（P1–P12）、数据模型、改造路线与已知债务 |
 | [`docs/log-analysis.md`](docs/log-analysis.md) | 14 轮 / 14,120 事件的数据实测：每集耗时分布、倍速口径、暂停与验证码归因、弹题覆盖面、哪些数字不能引用 |
